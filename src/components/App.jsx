@@ -1,8 +1,8 @@
-import CTRLSociety from './components/CTRLSociety'
-import './App.css'
+import CTRLSociety from "./components/CTRLSociety";
+import "./App.css";
 
 function App() {
-  return <CTRLSociety />
+	return <CTRLSociety />;
 }
 
-export default App
+export default App;

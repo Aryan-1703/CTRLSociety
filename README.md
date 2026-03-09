@@ -1,16 +1,45 @@
-# React + Vite
+# CTRL Society — React Storefront
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Setup
 
-Currently, two official plugins are available:
+1. Install dependencies:
+   npm install
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+2. Add your product images to src/assets/ (named 1.jpeg through 11.jpeg)
 
-## React Compiler
+3. Connect Shopify (optional but recommended):
+   Open src/lib/shopify.js and fill in:
+   - SHOPIFY_STORE_DOMAIN  → your-store.myshopify.com
+   - SHOPIFY_STOREFRONT_TOKEN → from Shopify Admin > Settings > Apps > Develop apps
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+4. Run locally:
+   npm run dev
 
-## Expanding the ESLint configuration
+5. Build for production:
+   npm run build
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Project Structure
+
+src/
+  components/     → All UI components
+  data/           → Product data & local images
+  hooks/          → useShopify, useCart, useReveal
+  lib/            → Shopify Storefront API client
+  styles/         → global.css (all styles)
+  assets/         → Place 1.jpeg–11.jpeg here
+
+## Shopify Integration
+
+To get your Storefront API token:
+1. Shopify Admin → Settings → Apps → Develop apps → Create an app
+2. Configuration → Storefront API → Enable:
+   ✅ unauthenticated_read_product_listings
+   ✅ unauthenticated_write_checkouts
+   ✅ unauthenticated_read_checkouts
+3. Save → Install app
+4. API credentials → Copy Storefront API access token
+5. Paste into src/lib/shopify.js
+
+## Files to DELETE from your project (duplicates)
+- src/components/App.jsx
+- src/components/main.jsx

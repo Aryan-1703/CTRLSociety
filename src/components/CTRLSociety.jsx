@@ -1,84 +1,106 @@
-import { useState, useEffect } from 'react'
-import '../styles/global.css'
+import { useState, useEffect } from "react";
+import "../styles/global.css";
 
-import { useCart } from '../hooks/useCart'
-import { useReveal } from '../hooks/useReveal'
+import { useShopify } from "../hooks/useShopify";
+import { useReveal } from "../hooks/useReveal";
 
-import AnnouncementBar from './AnnouncementBar'
-import Navbar          from './Navbar'
-import Hero            from './Hero'
-import Collection      from './Collection'
-import Campaign        from './Campaign'
-import Lookbook        from './Lookbook'
-import About           from './About'
-import Newsletter      from './Newsletter'
-import Footer          from './Footer'
-import CartDrawer      from './CartDrawer'
-import Toasts          from './Toasts'
+import AnnouncementBar from "./AnnouncementBar";
+import Navbar from "./Navbar";
+import Hero from "./Hero";
+import Collection from "./Collection";
+import Campaign from "./Campaign";
+import Lookbook from "./Lookbook";
+import About from "./About";
+import Newsletter from "./Newsletter";
+import Footer from "./Footer";
+import CartDrawer from "./CartDrawer";
+import Toasts from "./Toasts";
 
 export default function CTRLSociety() {
-  const [scrolled,    setScrolled]    = useState(false)
-  const [cartOpen,    setCartOpen]    = useState(false)
-  const [cursor,      setCursor]      = useState({ x: -100, y: -100 })
-  const [cursorHover, setCursorHover] = useState(false)
+	const [scrolled, setScrolled] = useState(false);
+	const [cartOpen, setCartOpen] = useState(false);
+	const [cursor, setCursor] = useState({ x: -100, y: -100 });
+	const [cursorHover, setCursorHover] = useState(false);
 
-  const { cart, addToCart, removeFromCart, cartQty, cartTotal, toasts } = useCart()
+	const {
+		products,
+		loading,
+		cartQty,
+		cartTotal,
+		cartItems,
+		addToCart,
+		removeFromCart,
+		checkout,
+		toasts,
+	} = useShopify();
 
-  // Sticky nav
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 80)
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+	// Sticky nav
+	useEffect(() => {
+		const onScroll = () => setScrolled(window.scrollY > 80);
+		window.addEventListener("scroll", onScroll);
+		return () => window.removeEventListener("scroll", onScroll);
+	}, []);
 
-  // Custom cursor
-  useEffect(() => {
-    const move = (e) => setCursor({ x: e.clientX, y: e.clientY })
-    window.addEventListener('mousemove', move)
-    return () => window.removeEventListener('mousemove', move)
-  }, [])
+	// Custom cursor
+	useEffect(() => {
+		const move = e => setCursor({ x: e.clientX, y: e.clientY });
+		window.addEventListener("mousemove", move);
+		return () => window.removeEventListener("mousemove", move);
+	}, []);
 
-  // Initial reveal pass
-  useReveal([])
+	// Auto-open cart when item added
+	useEffect(() => {
+		if (cartQty > 0) setCartOpen(true);
+	}, [cartQty]);
 
-  return (
-    <>
-      {/* Custom cursor dot */}
-      <div
-        className={`cur${cursorHover ? ' hov' : ''}`}
-        style={{ left: cursor.x, top: cursor.y }}
-      />
+	useReveal([]);
 
-      <AnnouncementBar />
+	return (
+		<>
+			{/* Custom cursor */}
+			<div
+				className={`cur${cursorHover ? " hov" : ""}`}
+				style={{ left: cursor.x, top: cursor.y }}
+			/>
 
-      <Navbar
-        scrolled={scrolled}
-        cartQty={cartQty}
-        onCartOpen={() => setCartOpen(true)}
-        onHover={setCursorHover}
-      />
+			<AnnouncementBar />
 
-      <main>
-        <Hero      onHover={setCursorHover} />
-        <Collection onAdd={addToCart} onHover={setCursorHover} />
-        <Campaign  onAdd={addToCart} onHover={setCursorHover} />
-        <Lookbook  onHover={setCursorHover} />
-        <About     onHover={setCursorHover} />
-        <Newsletter onHover={setCursorHover} />
-      </main>
+			<Navbar
+				scrolled={scrolled}
+				cartQty={cartQty}
+				onCartOpen={() => setCartOpen(true)}
+				onHover={setCursorHover}
+			/>
 
-      <Footer onHover={setCursorHover} />
+			<main>
+				<Hero onHover={setCursorHover} />
 
-      <CartDrawer
-        open={cartOpen}
-        onClose={() => setCartOpen(false)}
-        cart={cart}
-        cartQty={cartQty}
-        cartTotal={cartTotal}
-        onRemove={removeFromCart}
-      />
+				<Collection
+					products={products}
+					loading={loading}
+					onAdd={addToCart}
+					onHover={setCursorHover}
+				/>
 
-      <Toasts toasts={toasts} />
-    </>
-  )
+				<Campaign onAdd={addToCart} onHover={setCursorHover} />
+				<Lookbook onHover={setCursorHover} />
+				<About onHover={setCursorHover} />
+				<Newsletter onHover={setCursorHover} />
+			</main>
+
+			<Footer onHover={setCursorHover} />
+
+			<CartDrawer
+				open={cartOpen}
+				onClose={() => setCartOpen(false)}
+				cartItems={cartItems}
+				cartQty={cartQty}
+				cartTotal={cartTotal}
+				onRemove={removeFromCart}
+				onCheckout={checkout}
+			/>
+
+			<Toasts toasts={toasts} />
+		</>
+	);
 }
