@@ -1,13 +1,45 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import {
-  shopifyFetch,
-  GET_PRODUCTS,
-  CREATE_CART,
-  ADD_TO_CART,
-  UPDATE_CART_LINE,
-  REMOVE_FROM_CART,
-  GET_CART,
-} from '../lib/shopify'
+import { shopifyFetch, GET_PRODUCTS, CREATE_CART, ADD_TO_CART, REMOVE_FROM_CART } from '../lib/shopify'
+
+// ─── Queries inlined — works with any version of shopify.js ──────────────────
+
+const CART_FRAGMENT = `
+  id checkoutUrl
+  lines(first: 30) {
+    edges {
+      node {
+        id quantity
+        merchandise {
+          ... on ProductVariant {
+            id title
+            price { amount currencyCode }
+            product { title images(first: 1) { edges { node { url altText } } } }
+          }
+        }
+        cost { totalAmount { amount currencyCode } }
+      }
+    }
+  }
+  cost {
+    subtotalAmount { amount currencyCode }
+    totalAmount { amount currencyCode }
+  }
+`
+
+const GET_CART = `
+  query GetCart($cartId: ID!) {
+    cart(id: $cartId) { ${CART_FRAGMENT} }
+  }
+`
+
+const UPDATE_CART_LINE = `
+  mutation UpdateCartLine($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
+    cartLinesUpdate(cartId: $cartId, lines: $lines) {
+      cart { ${CART_FRAGMENT} }
+      userErrors { field message }
+    }
+  }
+`
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
@@ -40,8 +72,7 @@ export function parseProducts(data) {
       price: parseFloat(node.priceRange.minVariantPrice.amount),
       maxPrice: parseFloat(node.priceRange.maxVariantPrice.amount),
       currency: node.priceRange.minVariantPrice.currencyCode,
-      tag,
-      tags,
+      tag, tags,
       img: images[0] || null,
       img2: images[1] || images[0] || null,
       images,
@@ -77,52 +108,43 @@ export function parseCart(cart) {
   }
 }
 
-// ─── Cart persistence ─────────────────────────────────────────────────────────
+// ─── Cart ID persistence ──────────────────────────────────────────────────────
 const CART_ID_KEY = 'ctrl_cart_id'
-
-function saveCartId(id) {
-  try { localStorage.setItem(CART_ID_KEY, id) } catch {}
-}
-function loadCartId() {
-  try { return localStorage.getItem(CART_ID_KEY) } catch { return null }
-}
-function clearCartId() {
-  try { localStorage.removeItem(CART_ID_KEY) } catch {}
-}
+const saveCartId = id => { try { localStorage.setItem(CART_ID_KEY, id) } catch {} }
+const loadCartId = () => { try { return localStorage.getItem(CART_ID_KEY) } catch { return null } }
+const clearCartId = () => { try { localStorage.removeItem(CART_ID_KEY) } catch {} }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useShopify() {
   const [products, setProducts] = useState([])
   const [cart, setCart] = useState(null)
-  const [cartId, setCartId] = useState(() => loadCartId())
+  const [cartId, setCartId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [cartLoading, setCartLoading] = useState(false)
   const [toasts, setToasts] = useState([])
   const [error, setError] = useState(null)
   const toastCounter = useRef(0)
 
-  // Load products
+  // Load products on mount
   useEffect(() => {
     shopifyFetch(GET_PRODUCTS, { first: 24 })
       .then(data => setProducts(parseProducts(data)))
-      .catch(err => {
-        console.error('Products error:', err)
-        setError(err.message)
-      })
+      .catch(err => { console.error('Products:', err); setError(err.message) })
       .finally(() => setLoading(false))
   }, [])
 
-  // Restore cart from localStorage
+  // Restore saved cart on mount
   useEffect(() => {
-    if (!cartId) return
-    shopifyFetch(GET_CART, { cartId })
+    const savedId = loadCartId()
+    if (!savedId) return
+    shopifyFetch(GET_CART, { cartId: savedId })
       .then(data => {
-        if (data.cart) setCart(parseCart(data.cart))
-        else { clearCartId(); setCartId(null) }
+        if (data?.cart) { setCart(parseCart(data.cart)); setCartId(savedId) }
+        else { clearCartId() }
       })
-      .catch(() => { clearCartId(); setCartId(null) })
-  }, []) // eslint-disable-line
+      .catch(() => clearCartId())
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Toast helper
   const toast = useCallback((msg, type = 'success') => {
@@ -138,21 +160,16 @@ export function useShopify() {
     setCartLoading(true)
     try {
       if (!cartId) {
-        const data = await shopifyFetch(CREATE_CART, {
-          lines: [{ merchandiseId: vid, quantity: 1 }],
-        })
+        const data = await shopifyFetch(CREATE_CART, { lines: [{ merchandiseId: vid, quantity: 1 }] })
         const parsed = parseCart(data.cartCreate.cart)
         saveCartId(parsed.id)
         setCartId(parsed.id)
         setCart(parsed)
       } else {
-        const data = await shopifyFetch(ADD_TO_CART, {
-          cartId,
-          lines: [{ merchandiseId: vid, quantity: 1 }],
-        })
+        const data = await shopifyFetch(ADD_TO_CART, { cartId, lines: [{ merchandiseId: vid, quantity: 1 }] })
         setCart(parseCart(data.cartLinesAdd.cart))
       }
-      toast(`Added — ${product.name}`)
+      toast('Added — ' + product.name)
     } catch (err) {
       console.error('Add to cart:', err)
       toast('Could not add item. Try again.', 'error')
@@ -163,14 +180,10 @@ export function useShopify() {
 
   // Update quantity
   const updateQty = useCallback(async (lineId, quantity) => {
-    if (!cartId) return
-    if (quantity < 1) return
+    if (!cartId || quantity < 1) return
     setCartLoading(true)
     try {
-      const data = await shopifyFetch(UPDATE_CART_LINE, {
-        cartId,
-        lines: [{ id: lineId, quantity }],
-      })
+      const data = await shopifyFetch(UPDATE_CART_LINE, { cartId, lines: [{ id: lineId, quantity }] })
       setCart(parseCart(data.cartLinesUpdate.cart))
     } catch (err) {
       console.error('Update qty:', err)
@@ -185,15 +198,12 @@ export function useShopify() {
     if (!cartId) return
     setCartLoading(true)
     try {
-      const data = await shopifyFetch(REMOVE_FROM_CART, {
-        cartId,
-        lineIds: [lineId],
-      })
+      const data = await shopifyFetch(REMOVE_FROM_CART, { cartId, lineIds: [lineId] })
       const parsed = parseCart(data.cartLinesRemove.cart)
       setCart(parsed)
       if (parsed.qty === 0) { clearCartId(); setCartId(null); setCart(null) }
     } catch (err) {
-      console.error('Remove from cart:', err)
+      console.error('Remove:', err)
       toast('Could not remove item.', 'error')
     } finally {
       setCartLoading(false)
@@ -206,20 +216,13 @@ export function useShopify() {
   }, [cart])
 
   return {
-    products,
-    loading,
-    error,
-    cart,
-    cartLoading,
+    products, loading, error,
+    cart, cartLoading,
     cartQty: cart?.qty ?? 0,
     cartTotal: cart?.total ?? 0,
     cartSubtotal: cart?.subtotal ?? 0,
     cartItems: cart?.items ?? [],
     cartCurrency: cart?.currency ?? 'CAD',
-    addToCart,
-    updateQty,
-    removeFromCart,
-    checkout,
-    toasts,
+    addToCart, updateQty, removeFromCart, checkout, toasts,
   }
 }
